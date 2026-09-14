@@ -5,10 +5,13 @@ import android.os.StrictMode
 import com.hexora.manager.core.filesystem.CapabilityManager
 import com.hexora.manager.core.filesystem.FileProviderRegistry
 import com.hexora.manager.core.filesystem.LocalFileProvider
+import com.hexora.manager.core.filesystem.PrivilegedFileProvider
 import com.hexora.manager.core.filesystem.SafFileProvider
+import com.hexora.manager.core.model.FileSource
 import com.hexora.manager.core.operations.OperationEngine
-import com.hexora.manager.core.storage.StorageRepository
 import com.hexora.manager.core.storage.AppSettingsRepository
+import com.hexora.manager.core.storage.StorageRepository
+import com.hexora.manager.privileged.PrivilegeAccessManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,9 +44,20 @@ class HexoraApplication : Application() {
 
 class HexoraServices(application: Application) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val privilegeAccess = PrivilegeAccessManager(application)
     val localProvider = LocalFileProvider(application)
     val safProvider = SafFileProvider(application)
-    val providers = FileProviderRegistry(localProvider, safProvider)
+    val shizukuProvider = PrivilegedFileProvider(
+        key = PrivilegedFileProvider.SHIZUKU_KEY,
+        source = FileSource.SHIZUKU,
+        service = { privilegeAccess.shizukuService.value },
+    )
+    val rootProvider = PrivilegedFileProvider(
+        key = PrivilegedFileProvider.ROOT_KEY,
+        source = FileSource.ROOT,
+        service = { privilegeAccess.rootService.value },
+    )
+    val providers = FileProviderRegistry(localProvider, safProvider, shizukuProvider, rootProvider)
     val capabilityManager = CapabilityManager(application)
     val storageRepository = StorageRepository(application, localProvider)
     val settingsRepository = AppSettingsRepository(application)

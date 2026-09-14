@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hexora.manager.HexoraApplication
 import com.hexora.manager.core.filesystem.LocalFileProvider
+import com.hexora.manager.core.filesystem.PrivilegedFileProvider
 import com.hexora.manager.core.model.HexoraError
 import com.hexora.manager.core.model.HexoraFileRef
 import com.hexora.manager.core.model.HexoraResult
@@ -69,12 +70,14 @@ class HexoraViewModel(application: Application) : AndroidViewModel(application) 
 
     val operations: StateFlow<List<FileOperation>> = services.operationEngine.operations
     val themeMode = services.settingsRepository.themeMode
+    val privilegeState = services.privilegeAccess.state
 
     private val _hashResult = MutableStateFlow<String?>(null)
     val hashResult: StateFlow<String?> = _hashResult.asStateFlow()
 
     init {
         refreshHome()
+        services.privilegeAccess.refresh()
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -91,6 +94,35 @@ class HexoraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun quickLocations(): List<StorageRepository.QuickLocation> = services.storageRepository.quickLocations()
+
+    fun requestOrConnectShizuku() = services.privilegeAccess.requestOrConnectShizuku()
+
+    fun connectRoot() = services.privilegeAccess.connectRoot()
+
+    fun refreshPrivileges() = services.privilegeAccess.refresh()
+
+    fun openShizukuStorage() = openPrivileged(services.shizukuProvider, SHARED_STORAGE_ROOT)
+
+    fun openRootFilesystem() = openPrivileged(services.rootProvider, "/")
+
+    fun openAndroidData() {
+        when {
+            services.privilegeAccess.rootService.value != null -> openPrivileged(services.rootProvider, ANDROID_DATA_PATH)
+            services.privilegeAccess.shizukuService.value != null -> openPrivileged(services.shizukuProvider, ANDROID_DATA_PATH)
+            else -> _browser.value = _browser.value.copy(
+                error = "Android/data de outros apps é bloqueado pelo Android moderno. Conecte Shizuku/Depuração sem fio ou Root para tentar acesso privilegiado.",
+            )
+        }
+    }
+
+    private fun openPrivileged(provider: PrivilegedFileProvider, path: String) {
+        viewModelScope.launch {
+            when (val result = provider.resolve(path)) {
+                is HexoraResult.Success -> openDirectory(result.value, pushHistory = false)
+                is HexoraResult.Failure -> _browser.value = BrowserUiState(error = result.error.userMessage())
+            }
+        }
+    }
 
     fun openLocalPath(path: String) {
         when (val result = services.storageRepository.resolveLocal(path)) {
@@ -340,5 +372,7 @@ class HexoraViewModel(application: Application) : AndroidViewModel(application) 
     companion object {
         private const val MAX_EDITABLE_TEXT_BYTES = 4L * 1024L * 1024L
         private const val PREVIEW_TEXT_BYTES = 1024 * 1024
+        private const val SHARED_STORAGE_ROOT = "/storage/emulated/0"
+        private const val ANDROID_DATA_PATH = "/storage/emulated/0/Android/data"
     }
 }
