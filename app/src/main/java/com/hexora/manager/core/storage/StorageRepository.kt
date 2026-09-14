@@ -25,7 +25,7 @@ class StorageRepository(
         val totalBytes: Long?,
         val freeBytes: Long?,
     ) {
-        val usedBytes: Long? get() = if (totalBytes != null && freeBytes != null) (totalBytes - freeBytes).coerceAtLeast(0) else null
+        val usedBytes: Long? = if (totalBytes != null && freeBytes != null) (totalBytes - freeBytes).coerceAtLeast(0) else null
     }
 
     data class QuickLocation(
