@@ -157,7 +157,7 @@ open class PrivilegedFileBinder(
     private fun checkedFile(raw: String): File {
         require(raw.isNotBlank()) { "Empty path" }
         require(raw.indexOf('\u0000') < 0) { "NUL in path" }
-        val path = Path.of(raw)
+        val path = File(raw).toPath()
         require(path.isAbsolute) { "Privileged paths must be absolute" }
         return path.normalize().toFile()
     }
