@@ -64,7 +64,6 @@ kotlin {
     jvmToolchain(17)
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
-        freeCompilerArgs.add("-Xjvm-default=all")
     }
 }
 
