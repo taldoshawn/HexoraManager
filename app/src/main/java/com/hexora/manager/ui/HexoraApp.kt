@@ -12,6 +12,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -94,6 +95,7 @@ import com.hexora.manager.core.storage.ThemeMode
 import com.hexora.manager.core.util.FileIntentHelper
 import java.text.DateFormat
 import java.util.Date
+import java.util.Locale
 import kotlin.math.ln
 import kotlin.math.pow
 
@@ -113,14 +115,23 @@ fun HexoraApp(viewModel: HexoraViewModel) {
     Scaffold(
         bottomBar = {
             val route = nav.currentBackStackEntryAsState().value?.destination?.route
-            if (route != Routes.EDITOR && route != Routes.SETTINGS) BottomBar(nav, route)
+            if (route != Routes.EDITOR && route != Routes.SETTINGS) {
+                BottomBar(nav = nav, route = route)
+            }
         },
     ) { padding ->
-        NavHost(navController = nav, startDestination = Routes.HOME, modifier = Modifier.padding(padding)) {
+        NavHost(
+            navController = nav,
+            startDestination = Routes.HOME,
+            modifier = Modifier.padding(padding),
+        ) {
             composable(Routes.HOME) {
                 HomeScreen(
                     viewModel = viewModel,
-                    onPath = { viewModel.openLocalPath(it); nav.navigate(Routes.BROWSER) },
+                    onPath = {
+                        viewModel.openLocalPath(it)
+                        nav.navigate(Routes.BROWSER)
+                    },
                     onAccess = { nav.navigate(Routes.ACCESS) },
                     onSettings = { nav.navigate(Routes.SETTINGS) },
                 )
@@ -141,9 +152,15 @@ fun HexoraApp(viewModel: HexoraViewModel) {
                 )
             }
             composable(Routes.TASKS) { TasksScreen(viewModel) }
-            composable(Routes.ACCESS) { AccessScreen(viewModel) { nav.navigate(Routes.BROWSER) } }
-            composable(Routes.EDITOR) { TextEditorScreen(viewModel) { nav.popBackStack() } }
-            composable(Routes.SETTINGS) { SettingsScreen(viewModel) { nav.popBackStack() } }
+            composable(Routes.ACCESS) {
+                AccessScreen(viewModel) { nav.navigate(Routes.BROWSER) }
+            }
+            composable(Routes.EDITOR) {
+                TextEditorScreen(viewModel) { nav.popBackStack() }
+            }
+            composable(Routes.SETTINGS) {
+                SettingsScreen(viewModel) { nav.popBackStack() }
+            }
         }
     }
 }
@@ -178,58 +195,104 @@ private fun HomeScreen(
 ) {
     val state by viewModel.home.collectAsStateWithLifecycle()
     val allFiles = rememberAllFilesState()
+
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Column { Text("HEXORA", fontWeight = FontWeight.Bold); Text("Files without limits", style = MaterialTheme.typography.labelSmall) } },
-            actions = { IconButton(onClick = onSettings) { Icon(Icons.Outlined.Settings, "Configurações") } },
+            title = {
+                Column {
+                    Text("HEXORA", fontWeight = FontWeight.Bold)
+                    Text("Controle preciso dos seus arquivos", style = MaterialTheme.typography.labelSmall)
+                }
+            },
+            actions = {
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "Configurações")
+                }
+            },
         )
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
             item { SectionTitle("ARMAZENAMENTO") }
-            if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) }
-            state.error?.let { error -> item { Text(error, Modifier.padding(20.dp), color = MaterialTheme.colorScheme.error) } }
+            if (state.loading) {
+                item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) }
+            }
+            state.error?.let { error ->
+                item { ErrorText(error) }
+            }
             items(state.volumes, key = { it.id }) { volume ->
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Storage, null)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.Storage, contentDescription = null)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(volume.name, fontWeight = FontWeight.Medium)
                         val total = volume.totalBytes
                         val used = volume.usedBytes
                         Text(
-                            if (total != null && used != null) "${formatBytes(used)} de ${formatBytes(total)} · ${volume.state}" else volume.state,
+                            text = if (total != null && used != null) {
+                                "${formatBytes(used)} de ${formatBytes(total)} · ${volume.state}"
+                            } else {
+                                volume.state
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
+
             item { SectionTitle("PASTAS") }
             items(viewModel.quickLocations(), key = { it.path }) { location ->
                 val locked = !allFiles
                 Row(
-                    Modifier.fillMaxWidth().combinedClickable(
-                        onClick = { if (locked) onAccess() else onPath(location.path) },
-                        onLongClick = {},
-                    ).padding(horizontal = 20.dp, vertical = 13.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = { if (locked) onAccess() else onPath(location.path) },
+                            onLongClick = {},
+                        )
+                        .padding(horizontal = 20.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(if (locked) Icons.Outlined.Lock else Icons.Outlined.Folder, null)
+                    Icon(if (locked) Icons.Outlined.Lock else Icons.Outlined.Folder, contentDescription = null)
                     Spacer(Modifier.width(12.dp))
                     Text(location.label, Modifier.weight(1f))
-                    if (locked) Text("Conceder acesso", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    if (locked) {
+                        Text(
+                            "Conceder acesso",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
+
             item { SectionTitle("ACESSO") }
             item {
                 Row(
-                    Modifier.fillMaxWidth().combinedClickable(onClick = onAccess, onLongClick = {}).padding(horizontal = 20.dp, vertical = 14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(onClick = onAccess, onLongClick = {})
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Outlined.Security, null)
+                    Icon(Icons.Outlined.Security, contentDescription = null)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(if (allFiles) "Arquivos compartilhados disponíveis" else "Acesso a todos os arquivos desativado", fontWeight = FontWeight.Medium)
-                        Text("SAF continua disponível como alternativa de menor privilégio.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (allFiles) "Armazenamento compartilhado disponível" else "Acesso amplo desativado",
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            "SAF continua disponível como alternativa de menor privilégio.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -253,109 +316,200 @@ private fun BrowserScreen(
     var deleteConfirm by remember { mutableStateOf(false) }
     var properties by remember { mutableStateOf<HexoraFileRef?>(null) }
 
-    if (createKind != null) NameDialog(
-        title = if (createKind == "folder") "Nova pasta" else "Novo arquivo",
-        initial = "",
-        onDismiss = { createKind = null },
-        onConfirm = { if (createKind == "folder") viewModel.createDirectory(it) else viewModel.createFile(it); createKind = null },
-    )
-    renameRef?.let { ref -> NameDialog("Renomear", ref.name, { renameRef = null }) { viewModel.rename(ref, it); renameRef = null } }
-    properties?.let { ref -> PropertiesDialog(ref) { properties = null } }
+    if (createKind != null) {
+        NameDialog(
+            title = if (createKind == "folder") "Nova pasta" else "Novo arquivo",
+            initial = "",
+            onDismiss = { createKind = null },
+            onConfirm = { name ->
+                if (createKind == "folder") viewModel.createDirectory(name) else viewModel.createFile(name)
+                createKind = null
+            },
+        )
+    }
+
+    renameRef?.let { ref ->
+        NameDialog(
+            title = "Renomear",
+            initial = ref.name,
+            onDismiss = { renameRef = null },
+            onConfirm = {
+                viewModel.rename(ref, it)
+                renameRef = null
+            },
+        )
+    }
+
+    properties?.let { ref ->
+        PropertiesDialog(ref = ref, onDismiss = { properties = null })
+    }
+
     if (deleteConfirm) {
         AlertDialog(
             onDismissRequest = { deleteConfirm = false },
             title = { Text("Excluir permanentemente?") },
             text = { Text("A lixeira ainda não está implementada nesta versão. Esta ação não pode ser desfeita.") },
-            confirmButton = { TextButton(onClick = { viewModel.deleteSelected(); deleteConfirm = false }) { Text("Excluir") } },
-            dismissButton = { TextButton(onClick = { deleteConfirm = false }) { Text("Cancelar") } },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteSelected()
+                        deleteConfirm = false
+                    },
+                ) { Text("Excluir") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteConfirm = false }) { Text("Cancelar") }
+            },
         )
     }
+
     hash?.let { value ->
         AlertDialog(
             onDismissRequest = viewModel::clearHashResult,
             title = { Text("SHA-256") },
             text = { Text(value, fontFamily = FontFamily.Monospace) },
-            confirmButton = { TextButton(onClick = viewModel::clearHashResult) { Text("Fechar") } },
+            confirmButton = {
+                TextButton(onClick = viewModel::clearHashResult) { Text("Fechar") }
+            },
         )
     }
 
-    BackHandler(enabled = state.current != null) { if (!viewModel.goBack()) viewModel.goParent() }
+    BackHandler(enabled = state.current != null) {
+        if (!viewModel.goBack()) viewModel.goParent()
+    }
+
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = {
                 Column {
-                    Text(state.current?.displayName ?: "Arquivos", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(state.current?.path ?: state.current?.uri ?: "Selecione um local", style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        state.current?.displayName ?: "Arquivos",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        state.current?.path ?: state.current?.uri ?: "Selecione um local",
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             },
-            navigationIcon = { IconButton(onClick = { viewModel.goBack() }, enabled = state.backStack.isNotEmpty()) { Icon(Icons.Outlined.ArrowBack, "Voltar") } },
+            navigationIcon = {
+                IconButton(
+                    onClick = { viewModel.goBack() },
+                    enabled = state.backStack.isNotEmpty(),
+                ) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Voltar") }
+            },
             actions = {
-                IconButton(onClick = { viewModel.goForward() }, enabled = state.forwardStack.isNotEmpty()) { Icon(Icons.Outlined.ArrowForward, "Avançar") }
-                IconButton(onClick = viewModel::goParent, enabled = state.current != null) { Icon(Icons.Outlined.ArrowUpward, "Diretório pai") }
-                IconButton(onClick = viewModel::refreshBrowser, enabled = state.current != null) { Icon(Icons.Outlined.Refresh, "Atualizar") }
+                IconButton(
+                    onClick = { viewModel.goForward() },
+                    enabled = state.forwardStack.isNotEmpty(),
+                ) { Icon(Icons.Outlined.ArrowForward, contentDescription = "Avançar") }
+                IconButton(onClick = viewModel::goParent, enabled = state.current != null) {
+                    Icon(Icons.Outlined.ArrowUpward, contentDescription = "Diretório pai")
+                }
+                IconButton(onClick = viewModel::refreshBrowser, enabled = state.current != null) {
+                    Icon(Icons.Outlined.Refresh, contentDescription = "Atualizar")
+                }
             },
         )
-        if (state.current == null) {
+
+        val current = state.current
+        if (current == null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Outlined.Folder, null, modifier = Modifier.size(56.dp))
+                    Icon(Icons.Outlined.Folder, contentDescription = null, modifier = Modifier.size(56.dp))
                     Spacer(Modifier.height(12.dp))
                     Text("Abra uma pasta pela Home ou pelo SAF")
                     TextButton(onClick = onAccess) { Text("Abrir central de acesso") }
                 }
             }
-            return
-        }
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            label = { Text("Filtrar pasta") },
-            singleLine = true,
-        )
-        if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (state.selectedIds.isNotEmpty()) {
-            SelectionActions(
-                count = state.selectedIds.size,
-                onCopy = { viewModel.stageCopy(false) },
-                onMove = { viewModel.stageCopy(true) },
-                onShare = { onShare(viewModel.selectedItems()) },
-                onDelete = { deleteConfirm = true },
-                onRename = { viewModel.selectedItems().singleOrNull()?.let { renameRef = it } },
-                onHash = { viewModel.selectedItems().singleOrNull()?.let(viewModel::calculateSha256) },
+        } else {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                label = { Text("Filtrar pasta") },
+                singleLine = true,
             )
-        }
-        if (state.clipboard != null) {
-            Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.ContentPaste, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("${state.clipboard.items.size} item(ns) prontos para ${if (state.clipboard.move) "mover" else "copiar"}", Modifier.weight(1f))
-                    Button(onClick = viewModel::paste) { Text("Colar") }
+
+            if (state.loading) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            state.error?.let { ErrorText(it) }
+
+            if (state.selectedIds.isNotEmpty()) {
+                SelectionActions(
+                    count = state.selectedIds.size,
+                    onCopy = { viewModel.stageCopy(false) },
+                    onMove = { viewModel.stageCopy(true) },
+                    onShare = { onShare(viewModel.selectedItems()) },
+                    onDelete = { deleteConfirm = true },
+                    onRename = { viewModel.selectedItems().singleOrNull()?.let { renameRef = it } },
+                    onHash = { viewModel.selectedItems().singleOrNull()?.let(viewModel::calculateSha256) },
+                )
+            }
+
+            val clipboard = state.clipboard
+            if (clipboard != null) {
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.ContentPaste, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "${clipboard.items.size} item(ns) prontos para ${if (clipboard.move) "mover" else "copiar"}",
+                            Modifier.weight(1f),
+                        )
+                        Button(onClick = viewModel::paste) { Text("Colar") }
+                    }
                 }
             }
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { createKind = "folder" }) { Icon(Icons.Outlined.CreateNewFolder, null); Spacer(Modifier.width(6.dp)); Text("Pasta") }
-            OutlinedButton(onClick = { createKind = "file" }) { Icon(Icons.Outlined.NoteAdd, null); Spacer(Modifier.width(6.dp)); Text("Arquivo") }
-        }
-        val filtered = remember(state.entries, query) {
-            if (query.isBlank()) state.entries else state.entries.filter { it.displayName.contains(query, ignoreCase = true) }
-        }
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(filtered, key = { it.id }) { ref ->
-                val selected = ref.id in state.selectedIds
-                FileRow(
-                    ref = ref,
-                    selected = selected,
-                    onClick = {
-                        if (state.selectedIds.isNotEmpty()) viewModel.toggleSelection(ref)
-                        else if (ref.isDirectory) viewModel.openDirectory(ref) else onOpenFile(ref)
-                    },
-                    onLongClick = { viewModel.toggleSelection(ref) },
-                    onInfo = { properties = ref },
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(onClick = { createKind = "folder" }) {
+                    Icon(Icons.Outlined.CreateNewFolder, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Pasta")
+                }
+                OutlinedButton(onClick = { createKind = "file" }) {
+                    Icon(Icons.Outlined.NoteAdd, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Arquivo")
+                }
+            }
+
+            val filtered = remember(state.entries, query) {
+                if (query.isBlank()) state.entries
+                else state.entries.filter { it.displayName.contains(query, ignoreCase = true) }
+            }
+
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(filtered, key = { it.id }) { ref ->
+                    val selected = ref.id in state.selectedIds
+                    FileRow(
+                        ref = ref,
+                        selected = selected,
+                        onClick = {
+                            if (state.selectedIds.isNotEmpty()) {
+                                viewModel.toggleSelection(ref)
+                            } else if (ref.isDirectory) {
+                                viewModel.openDirectory(ref)
+                            } else {
+                                onOpenFile(ref)
+                            }
+                        },
+                        onLongClick = { viewModel.toggleSelection(ref) },
+                        onInfo = { properties = ref },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                }
             }
         }
     }
@@ -372,14 +526,18 @@ private fun SelectionActions(
     onHash: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth()) {
-        Text("$count selecionado(s)", Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium)
+        Text(
+            "$count selecionado(s)",
+            Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+        )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            IconButton(onClick = onCopy) { Icon(Icons.Outlined.ContentCopy, "Copiar") }
-            IconButton(onClick = onMove) { Icon(Icons.Outlined.DriveFileMove, "Mover") }
-            IconButton(onClick = onShare) { Icon(Icons.Outlined.Share, "Compartilhar") }
-            IconButton(onClick = onHash) { Icon(Icons.Outlined.CheckCircle, "SHA-256") }
-            IconButton(onClick = onRename) { Icon(Icons.Outlined.InsertDriveFile, "Renomear") }
-            IconButton(onClick = onDelete) { Icon(Icons.Outlined.DeleteOutline, "Excluir") }
+            IconButton(onClick = onCopy) { Icon(Icons.Outlined.ContentCopy, contentDescription = "Copiar") }
+            IconButton(onClick = onMove) { Icon(Icons.Outlined.DriveFileMove, contentDescription = "Mover") }
+            IconButton(onClick = onShare) { Icon(Icons.Outlined.Share, contentDescription = "Compartilhar") }
+            IconButton(onClick = onHash) { Icon(Icons.Outlined.CheckCircle, contentDescription = "SHA-256") }
+            IconButton(onClick = onRename) { Icon(Icons.Outlined.InsertDriveFile, contentDescription = "Renomear") }
+            IconButton(onClick = onDelete) { Icon(Icons.Outlined.DeleteOutline, contentDescription = "Excluir") }
         }
     }
 }
@@ -393,37 +551,68 @@ private fun FileRow(
     onLongClick: () -> Unit,
     onInfo: () -> Unit,
 ) {
-    Surface(color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background) {
+    Surface(
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background,
+    ) {
         Row(
-            Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(if (ref.isDirectory) Icons.Outlined.Folder else Icons.Outlined.InsertDriveFile, null)
+            Icon(
+                if (ref.isDirectory) Icons.Outlined.Folder else Icons.Outlined.InsertDriveFile,
+                contentDescription = null,
+            )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(ref.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
                 Text(
-                    buildString {
+                    ref.displayName,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = buildString {
                         if (ref.isDirectory) append("Pasta") else append(ref.size?.let(::formatBytes) ?: "Arquivo")
-                        ref.lastModified?.let { append(" · "); append(DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it))) }
+                        ref.lastModified?.let {
+                            append(" · ")
+                            append(DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it)))
+                        }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onInfo) { Icon(Icons.Outlined.Info, "Propriedades") }
+            IconButton(onClick = onInfo) { Icon(Icons.Outlined.Info, contentDescription = "Propriedades") }
         }
     }
 }
 
 @Composable
-private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+private fun NameDialog(
+    title: String,
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
     var value by remember(initial) { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { OutlinedTextField(value = value, onValueChange = { value = it }, singleLine = true) },
-        confirmButton = { TextButton(enabled = value.isNotBlank(), onClick = { onConfirm(value) }) { Text("Confirmar") } },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            TextButton(enabled = value.isNotBlank(), onClick = { onConfirm(value) }) {
+                Text("Confirmar")
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
@@ -450,7 +639,14 @@ private fun PropertiesDialog(ref: HexoraFileRef, onDismiss: () -> Unit) {
 
 @Composable
 private fun Property(label: String, value: String) {
-    Column { Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(value) }
+    Column {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(value)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -471,6 +667,7 @@ private fun AccessScreen(viewModel: HexoraViewModel, onSafOpened: () -> Unit) {
             onSafOpened()
         }
     }
+
     Column(Modifier.fillMaxSize()) {
         TopAppBar(title = { Text("Acesso e privilégios") })
         LazyColumn(Modifier.fillMaxSize()) {
@@ -478,32 +675,57 @@ private fun AccessScreen(viewModel: HexoraViewModel, onSafOpened: () -> Unit) {
             item {
                 AccessRow(
                     title = "Todos os arquivos",
-                    detail = if (allFiles) "Concedido. Áreas protegidas pelo Android continuam sujeitas às regras do sistema." else "Opcional; necessário para navegação ampla no armazenamento compartilhado.",
+                    detail = if (allFiles) {
+                        "Concedido. Áreas protegidas pelo Android continuam sujeitas às regras do sistema."
+                    } else {
+                        "Opcional; use somente quando a navegação ampla no armazenamento compartilhado for necessária."
+                    },
                     active = allFiles,
                     action = if (allFiles) null else "Conceder",
                 ) {
-                    context.startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}")))
+                    context.startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            Uri.parse("package:${context.packageName}"),
+                        ),
+                    )
                 }
             }
             item {
-                AccessRow("Storage Access Framework", "Escolha apenas as pastas que deseja conceder ao Hexora.", persisted.isNotEmpty(), "Selecionar pasta") {
-                    treeLauncher.launch(null)
-                }
+                AccessRow(
+                    title = "Storage Access Framework",
+                    detail = "Escolha somente as pastas que deseja conceder ao Hexora.",
+                    active = persisted.isNotEmpty(),
+                    action = "Selecionar pasta",
+                ) { treeLauncher.launch(null) }
             }
             if (persisted.isNotEmpty()) {
                 items(persisted, key = { it.uri.toString() }) { permission ->
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 10.dp)) {
-                        Icon(Icons.Outlined.Folder, null)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.Folder, contentDescription = null)
                         Spacer(Modifier.width(10.dp))
-                        Text(permission.uri.toString(), Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        TextButton(onClick = { viewModel.openSafTree(permission.uri); onSafOpened() }) { Text("Abrir") }
+                        Text(
+                            permission.uri.toString(),
+                            Modifier.weight(1f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        TextButton(
+                            onClick = {
+                                viewModel.openSafTree(permission.uri)
+                                onSafOpened()
+                            },
+                        ) { Text("Abrir") }
                     }
                 }
             }
             item { SectionTitle("PRIVILÉGIOS AVANÇADOS") }
-            item { AccessRow("Shizuku", "Não integrado nesta versão inicial; nenhum acesso é simulado.", false) }
-            item { AccessRow("Wireless ADB", "Não integrado nesta versão inicial; autorização ADB nunca será contornada.", false) }
-            item { AccessRow("Root", "Não integrado nesta versão inicial; operações root serão explícitas e isoladas.", false) }
+            item { AccessRow("Shizuku", "Ainda não integrado; nenhum acesso é simulado.", false) }
+            item { AccessRow("Wireless ADB", "Ainda não integrado; a autorização ADB nunca será contornada.", false) }
+            item { AccessRow("Root", "Ainda não integrado; futuras operações root serão explícitas e isoladas.", false) }
         }
     }
 }
@@ -516,13 +738,26 @@ private fun AccessRow(
     action: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.Top) {
-        Icon(if (active) Icons.Outlined.CheckCircle else Icons.Outlined.Security, null, tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            if (active) Icons.Outlined.CheckCircle else Icons.Outlined.Security,
+            contentDescription = null,
+            tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.Medium)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (action != null && onAction != null) TextButton(onClick = onAction) { Text(action) }
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (action != null && onAction != null) {
+                TextButton(onClick = onAction) { Text(action) }
+            }
         }
     }
 }
@@ -534,22 +769,40 @@ private fun TasksScreen(viewModel: HexoraViewModel) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(title = { Text("Tarefas") })
         if (operations.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nenhuma operação ainda") }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Nenhuma operação ainda")
+            }
         } else {
             LazyColumn {
                 items(operations, key = { it.operationId }) { op ->
                     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.TaskAlt, null)
+                            Icon(Icons.Outlined.TaskAlt, contentDescription = null)
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text("${op.type} · ${op.state}", fontWeight = FontWeight.Medium)
-                                Text("${op.filesProcessed}/${op.filesTotal ?: "?"} itens${op.speedBytesPerSecond?.let { " · ${formatBytes(it)}/s" } ?: ""}", style = MaterialTheme.typography.bodySmall)
-                                op.error?.let { Text(it.userMessage(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                                Text(
+                                    "${op.filesProcessed}/${op.filesTotal ?: "?"} itens${op.speedBytesPerSecond?.let { " · ${formatBytes(it)}/s" } ?: ""}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                op.error?.let {
+                                    Text(
+                                        it.userMessage(),
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
                             }
-                            if (op.state == FileOperationState.RUNNING || op.state == FileOperationState.QUEUED) TextButton(onClick = { viewModel.cancelOperation(op.operationId) }) { Text("Cancelar") }
+                            if (op.state == FileOperationState.RUNNING || op.state == FileOperationState.QUEUED) {
+                                TextButton(onClick = { viewModel.cancelOperation(op.operationId) }) { Text("Cancelar") }
+                            }
                         }
-                        if (op.state == FileOperationState.RUNNING) LinearProgressIndicator(progress = { op.progress }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                        if (op.state == FileOperationState.RUNNING) {
+                            LinearProgressIndicator(
+                                progress = { op.progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            )
+                        }
                     }
                     HorizontalDivider()
                 }
@@ -563,21 +816,53 @@ private fun TasksScreen(viewModel: HexoraViewModel) {
 private fun TextEditorScreen(viewModel: HexoraViewModel, onBack: () -> Unit) {
     val state by viewModel.editor.collectAsStateWithLifecycle()
     BackHandler(onBack = onBack)
+
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Column { Text(state.ref?.displayName ?: "Editor", maxLines = 1, overflow = TextOverflow.Ellipsis); if (state.readOnly) Text("Somente leitura", style = MaterialTheme.typography.labelSmall) } },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") } },
-            actions = { IconButton(enabled = state.dirty && !state.readOnly && !state.saving, onClick = viewModel::saveEditor) { Icon(Icons.Outlined.Save, "Salvar") } },
+            title = {
+                Column {
+                    Text(
+                        state.ref?.displayName ?: "Editor",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (state.readOnly) {
+                        Text("Somente leitura", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            },
+            navigationIcon = {
+                IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Voltar") }
+            },
+            actions = {
+                IconButton(
+                    enabled = state.dirty && !state.readOnly && !state.saving,
+                    onClick = viewModel::saveEditor,
+                ) { Icon(Icons.Outlined.Save, contentDescription = "Salvar") }
+            },
         )
-        if (state.loading || state.saving) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (state.truncated) Text("Arquivo grande: prévia limitada a 1 MiB.", Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodySmall)
-        state.error?.let { Text(it, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.error) }
+        if (state.loading || state.saving) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
+        if (state.truncated) {
+            Text(
+                "Arquivo grande: prévia limitada a 1 MiB.",
+                Modifier.fillMaxWidth().padding(12.dp),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        state.error?.let { ErrorText(it) }
         BasicTextField(
             value = state.text,
             onValueChange = viewModel::updateEditorText,
             readOnly = state.readOnly,
             modifier = Modifier.fillMaxSize().padding(16.dp),
-            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onBackground),
+            textStyle = TextStyle(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                color = MaterialTheme.colorScheme.onBackground,
+            ),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         )
     }
@@ -588,27 +873,65 @@ private fun TextEditorScreen(viewModel: HexoraViewModel, onBack: () -> Unit) {
 private fun SettingsScreen(viewModel: HexoraViewModel, onBack: () -> Unit) {
     val mode by viewModel.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Configurações") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") } })
+        TopAppBar(
+            title = { Text("Configurações") },
+            navigationIcon = {
+                IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Voltar") }
+            },
+        )
         LazyColumn(Modifier.fillMaxSize()) {
             item { SectionTitle("APARÊNCIA") }
             item {
-                Row(Modifier.fillMaxWidth().padding(20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     ThemeMode.entries.forEach { item ->
-                        val label = when (item) { ThemeMode.SYSTEM -> "Sistema"; ThemeMode.LIGHT -> "Claro"; ThemeMode.DARK -> "Escuro" }
-                        if (item == mode) Button(onClick = { viewModel.setThemeMode(item) }) { Text(label) }
-                        else OutlinedButton(onClick = { viewModel.setThemeMode(item) }) { Text(label) }
+                        val label = when (item) {
+                            ThemeMode.SYSTEM -> "Sistema"
+                            ThemeMode.LIGHT -> "Claro"
+                            ThemeMode.DARK -> "Escuro"
+                        }
+                        if (item == mode) {
+                            Button(onClick = { viewModel.setThemeMode(item) }) { Text(label) }
+                        } else {
+                            OutlinedButton(onClick = { viewModel.setThemeMode(item) }) { Text(label) }
+                        }
                     }
                 }
             }
             item { SectionTitle("SEGURANÇA") }
-            item { Text("Menor privilégio por padrão. Sem conta, anúncios ou telemetria. Exclusões são permanentes nesta versão e exigem confirmação.", Modifier.padding(horizontal = 20.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item {
+                Text(
+                    "Menor privilégio por padrão. Sem conta, anúncios ou telemetria. Exclusões são permanentes nesta versão e exigem confirmação.",
+                    Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
 
 @Composable
+private fun ErrorText(message: String) {
+    Text(
+        message,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall,
+    )
+}
+
+@Composable
 private fun SectionTitle(text: String) {
-    Text(text, Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(
+        text,
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.1.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
@@ -616,7 +939,11 @@ private fun rememberAllFilesState(): Boolean {
     var value by remember { mutableStateOf(Environment.isExternalStorageManager()) }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) value = Environment.isExternalStorageManager() }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                value = Environment.isExternalStorageManager()
+            }
+        }
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
@@ -625,12 +952,16 @@ private fun rememberAllFilesState(): Boolean {
 
 private fun isTextLike(ref: HexoraFileRef): Boolean {
     if (ref.mime?.startsWith("text/") == true) return true
-    return ref.extension in setOf("txt", "log", "kt", "kts", "java", "smali", "xml", "json", "json5", "yaml", "yml", "toml", "html", "css", "js", "ts", "py", "sh", "c", "h", "cpp", "hpp", "rs", "go", "sql", "md", "gradle", "properties", "ini", "conf", "csv")
+    return ref.extension in setOf(
+        "txt", "log", "kt", "kts", "java", "smali", "xml", "json", "json5", "yaml", "yml", "toml",
+        "html", "css", "js", "ts", "py", "sh", "c", "h", "cpp", "hpp", "rs", "go", "sql", "md",
+        "gradle", "properties", "ini", "conf", "csv",
+    )
 }
 
 private fun formatBytes(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"
     val exp = (ln(bytes.toDouble()) / ln(1024.0)).toInt().coerceIn(1, 5)
     val label = listOf("KiB", "MiB", "GiB", "TiB", "PiB")[exp - 1]
-    return String.format("%.1f %s", bytes / 1024.0.pow(exp.toDouble()), label)
+    return String.format(Locale.getDefault(), "%.1f %s", bytes / 1024.0.pow(exp.toDouble()), label)
 }
