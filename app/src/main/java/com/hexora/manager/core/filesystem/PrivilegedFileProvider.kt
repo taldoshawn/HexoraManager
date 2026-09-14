@@ -12,9 +12,9 @@ import com.hexora.manager.privileged.PrivilegedRecord
 import com.hexora.manager.privileged.PrivilegedRecordCodec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
-import java.nio.file.Path
 
 class PrivilegedFileProvider(
     override val key: String,
@@ -71,7 +71,7 @@ class PrivilegedFileProvider(
 
     override suspend fun rename(ref: HexoraFileRef, newName: String): HexoraResult<HexoraFileRef> = io {
         require(FilenameValidator.validate(newName)) { "Invalid file name" }
-        val current = Path.of(requirePath(ref))
+        val current = File(requirePath(ref)).toPath().normalize()
         val parent = current.parent ?: error("Cannot rename filesystem root")
         val target = parent.resolve(newName).normalize().toString()
         val remote = requireService()
@@ -85,8 +85,8 @@ class PrivilegedFileProvider(
     }
 
     override suspend fun move(ref: HexoraFileRef, destinationDirectory: HexoraFileRef): HexoraResult<HexoraFileRef> = io {
-        val sourcePath = Path.of(requirePath(ref)).normalize()
-        val target = Path.of(requirePath(destinationDirectory)).resolve(ref.name).normalize()
+        val sourcePath = File(requirePath(ref)).toPath().normalize()
+        val target = File(requirePath(destinationDirectory)).toPath().resolve(ref.name).normalize()
         val remote = requireService()
         if (!remote.rename(sourcePath.toString(), target.toString())) {
             return@io throw UnsupportedOperationException("Direct privileged move is not available for this target")
@@ -95,7 +95,7 @@ class PrivilegedFileProvider(
     }
 
     override suspend fun parentOf(ref: HexoraFileRef): HexoraResult<HexoraFileRef?> = io {
-        val parent = Path.of(requirePath(ref)).normalize().parent ?: return@io null
+        val parent = File(requirePath(ref)).toPath().normalize().parent ?: return@io null
         val remote = requireService()
         toRef(PrivilegedRecordCodec.decode(remote.stat(parent.toString())))
     }
@@ -121,7 +121,7 @@ class PrivilegedFileProvider(
             name = record.name,
             displayName = record.name,
             path = record.path,
-            parentId = Path.of(record.path).parent?.let { "$key:$it" },
+            parentId = File(record.path).toPath().parent?.let { "$key:$it" },
             source = source,
             providerKey = key,
             isDirectory = record.directory,
@@ -135,12 +135,12 @@ class PrivilegedFileProvider(
     }
 
     private fun childPath(parent: HexoraFileRef, name: String): String =
-        Path.of(requirePath(parent)).resolve(name).normalize().toString()
+        File(requirePath(parent)).toPath().resolve(name).normalize().toString()
 
     private fun requirePath(ref: HexoraFileRef): String = ref.path ?: error("Missing privileged path")
 
     private fun normalizeAbsolute(raw: String): String {
-        val path = Path.of(raw)
+        val path = File(raw).toPath()
         require(path.isAbsolute) { "Path must be absolute" }
         return path.normalize().toString()
     }
