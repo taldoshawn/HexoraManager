@@ -75,7 +75,7 @@ internal object PrivilegedRecordCodec {
     private fun text(value: String): String = decoder.decode(value).toString(Charsets.UTF_8)
 }
 
-open class PrivilegedFileBinder protected constructor(
+open class PrivilegedFileBinder(
     private val onDestroyCallback: () -> Unit,
 ) : IPrivilegedFileService.Stub() {
 
